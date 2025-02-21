@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QMutex>
 #include <QObject>
+#include <atomic>
 #include <memory>
 
 namespace common::utils {
@@ -34,7 +35,7 @@ private:
 
   QFile m_logFile;
   QMutex m_mutex;
-  LogLevel m_currentLevel;
+  std::atomic<LogLevel> m_currentLevel;
 
   static std::unique_ptr<Logger> s_instance;
 };

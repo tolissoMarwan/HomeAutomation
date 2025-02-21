@@ -83,14 +83,11 @@ void Logger::log(LogLevel level, const QString &msg,
                     .arg(context.line)
                     .arg(msg);
 
-  QMutexLocker locker(&instance()->m_mutex);
+  auto locker = QMutexLocker(&instance()->m_mutex);
 
   std::cerr << logMsg.toStdString() << "\n";
 
-  if (instance()->m_logFile.isOpen()) {
-    auto stream = QTextStream(&instance()->m_logFile);
-    stream << logMsg << Qt::endl;
-  }
+  instance()->writeToFile(logMsg);
 }
 
 void Logger::setLogLevel(LogLevel level) {
@@ -109,6 +106,15 @@ Logger *Logger::instance() {
   }
 
   return s_instance.get();
+}
+
+void Logger::writeToFile(const QString &message) {
+  QMutexLocker locker(&m_mutex);
+
+  if (m_logFile.isOpen()) {
+    QTextStream stream(&m_logFile);
+    stream << message << Qt::endl;
+  }
 }
 
 } // namespace common::utils
