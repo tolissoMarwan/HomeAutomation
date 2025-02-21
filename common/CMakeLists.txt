@@ -1,24 +1,21 @@
-qt_add_library(common STATIC
-    src/dtos/DeviceState.cpp
-    src/dtos/SensorData.cpp
-    src/utils/logger.cpp
+cmake_minimum_required(VERSION 3.10)
 
-    include/dtos/DeviceState.h
-    include/dtos/SensorData.h
-    include/interfaces/IDeviceController.h
-    include/interfaces/ISensorReader.h
-    include/utils/Logger.h
+project(Common)
+
+include_directories(${COMMON_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+find_package(Qt6 COMPONENTS Core REQUIRED)
+
+file(GLOB COMMON_SOURCES
+    "src/**/*.cpp"
+    "include/**/*.h"
 )
+add_library(common ${COMMON_SOURCES})
+add_library(common_implementation INTERFACE)
+target_include_directories(common_implementation INTERFACE ${COMMON_INCLUDE_DIR})
+
+target_link_libraries(common_implementation INTERFACE common_implementation)
 target_link_libraries(common
-    PRIVATE
-        Qt6::Core
-        Qt6::Mqtt
-)
+    Qt6::Core
 
-target_include_directories(common PUBLIC
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>  # Expose headers to other projects
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src  # For internal includes
 )
-
