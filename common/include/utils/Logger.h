@@ -3,40 +3,41 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QFile>
+#include <QLoggingCategory>
 #include <QMutex>
 #include <QObject>
 #include <atomic>
 #include <memory>
 
-namespace common::utils {
+Q_DECLARE_LOGGING_CATEGORY(loggerCategory)
+
 class Logger : public QObject {
   Q_OBJECT
 
 public:
-  explicit Logger(const QString &filename = "", QObject *parent = nullptr);
-  ~Logger();
+  enum class LogLevel { Debug, Info, Warning, Critical, Fatal, Unknown };
 
-  enum class LogLevel { Debug, Info, Warning, Error, Critical, Fatal };
-  Q_ENUM(LogLevel)
+  explicit Logger(QObject *parent = nullptr);
+  virtual ~Logger();
 
-  static void init(const QString &filename = "");
-  static void cleanup();
-
-  static void log(LogLevel level, const QString &msg,
-                  const QMessageLogContext &context = QMessageLogContext());
-
-  // Convenience methods (optional, but often useful):
-  static void setLogLevel(LogLevel level);
-  static LogLevel loglevel();
+  std::shared_ptr<Logger> getInstance() const;
+  static void setInstance(std::shared_ptr<Logger> instance);
 
 private:
-  static Logger *instance();
-  void writeToFile(const QString &message);
+  static void messageHandler(QtMsgType type, const QMessageLogContext &context,
+                             const QString &msg);
 
-  QFile m_logFile;
-  QMutex m_mutex;
-  std::atomic<LogLevel> m_currentLevel;
+  void setLogLevel(LogLevel level);
+  void writeToFile(const QString &message) const;
+  void init();
 
-  static std::unique_ptr<Logger> s_instance;
+  QString log(const QString &categoryName, const QString &msg) const;
+  QString loglevelToStr(const Logger::LogLevel &logLevel) const;
+  QString formatMessage(const QString &categoryName, const QString &msg) const;
+
+  mutable QFile m_logFile;
+  mutable QMutex m_mutex;
+  Logger::LogLevel m_logLevel;
+
+  static std::shared_ptr<Logger> m_instance;
 };
-} // namespace common::utils

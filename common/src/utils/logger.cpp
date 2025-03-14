@@ -1,16 +1,47 @@
-#include "utils/Logger.h"
 #include <QDir>
 #include <iostream>
 
-namespace common::utils {
+#include "utils/Logger.h"
 
-std::unique_ptr<Logger> Logger::s_instance = nullptr;
+Q_LOGGING_CATEGORY(loggerCategory, "Logger")
 
-Logger::Logger(const QString &filename, QObject *parent)
-    : QObject(parent), m_currentLevel(LogLevel::Info) {
-  if (!filename.isEmpty()) {
-    m_logFile.setFileName(filename);
+std::shared_ptr<Logger> Logger::m_instance = nullptr;
+
+void Logger::setInstance(std::shared_ptr<Logger> instance) {
+  m_instance = instance;
+}
+
+std::shared_ptr<Logger> Logger::getInstance() const { return m_instance; }
+
+void Logger::messageHandler(QtMsgType type, const QMessageLogContext &context,
+                            const QString &msg) {
+  if (m_instance) {
+
+    switch (type) {
+    case QtDebugMsg:
+      m_instance->setLogLevel(Logger::LogLevel::Debug);
+      break;
+    case QtInfoMsg:
+      m_instance->setLogLevel(Logger::LogLevel::Info);
+      break;
+    case QtWarningMsg:
+      m_instance->setLogLevel(Logger::LogLevel::Warning);
+      break;
+    case QtCriticalMsg:
+      m_instance->setLogLevel(Logger::LogLevel::Critical);
+      break;
+    case QtFatalMsg:
+      m_instance->setLogLevel(Logger::LogLevel::Fatal);
+      break;
+    }
+
+    m_instance->log(QString::fromLatin1(context.category), msg);
   }
+}
+
+Logger::Logger(QObject *parent)
+    : QObject(parent), m_logLevel(LogLevel::Unknown) {
+  init();
 }
 
 Logger::~Logger() {
@@ -19,102 +50,78 @@ Logger::~Logger() {
   }
 }
 
-void Logger::init(const QString &filename) {
-  if (!s_instance) {
-    auto timestamp = QDateTime::currentDateTime().toString();
-    auto logFileName = QString("%1_log.txt").arg(timestamp);
-    auto logDirectory = QString("logs");
-    auto dir = QDir(logDirectory);
-    auto fullLogPath = dir.filePath(logFileName);
-    s_instance = std::make_unique<Logger>(fullLogPath, nullptr);
+void Logger::init() {
 
-    if (!dir.exists()) {
-      if (!dir.mkpath(logDirectory)) { // Create recursively
-        qWarning() << "Failed to create log directory!";
-        return;
-      }
-    }
+  auto timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss");
+  auto filename = QString("%1_log.txt").arg(timestamp);
+  auto logDirectory = QString("logs");
+
+  auto fullFileName = QString("%1/%2").arg(logDirectory, filename);
+  m_logFile.setFileName(fullFileName);
+
+  if (!m_logFile.open(QIODevice::Append | QIODevice::Text)) {
+    std::cerr << "Failed to open log file: " << fullFileName.toStdString();
   }
 
-  if (!filename.isEmpty()) {
-    s_instance->m_logFile.setFileName(filename);
+  // if (!m_instance)
+  //   m_instance = std::make_shared<Logger>(this);
 
-    if (!s_instance->m_logFile.open(QIODevice::Append | QIODevice::Text)) {
-      qWarning() << "Failed to open log file: " << filename;
-    }
-  }
-
-  qInstallMessageHandler([](QtMsgType type, const QMessageLogContext &context,
-                            const QString &msg) {
-    auto level = LogLevel();
-    switch (type) {
-    case QtDebugMsg:
-      level = LogLevel::Debug;
-      break;
-    case QtInfoMsg:
-      level = LogLevel::Info;
-      break;
-    case QtWarningMsg:
-      level = LogLevel::Warning;
-      break;
-    case QtCriticalMsg:
-      level = LogLevel::Critical;
-      break;
-    case QtFatalMsg:
-      level = LogLevel::Fatal;
-      break;
-    }
-    Logger::log(level, msg, context);
-  });
+  qInstallMessageHandler(Logger::messageHandler);
 }
 
-void Logger::cleanup() { s_instance.reset(); }
+QString Logger::log(const QString &categoryName, const QString &msg) const {
 
-void Logger::log(LogLevel level, const QString &msg,
-                 const QMessageLogContext &context) {
-  if (level < instance()->m_currentLevel)
-    return;
+  auto logMsg = QString();
 
+  logMsg = formatMessage(categoryName, msg);
+  writeToFile(logMsg);
+
+  std::cerr << logMsg.toStdString() << '\n';
+
+  return logMsg;
+}
+
+void Logger::setLogLevel(LogLevel level) { m_logLevel = level; }
+
+QString Logger::formatMessage(const QString &categoryName,
+                              const QString &msg) const {
   auto timestamp = QDateTime::currentDateTime().toString(Qt::ISODate);
-  auto levelStr = QVariant::fromValue(level).toString();
-  auto file = context.file ? context.file : "unknown";
-  auto logMsg = QString("[%1] [%2] %3:%4 - %5")
-                    .arg(timestamp, levelStr, file)
-                    .arg(context.line)
-                    .arg(msg);
+  auto levelStr = loglevelToStr(m_logLevel);
+  auto logMsg =
+      QString("[%1] [%2] [%3]: %4").arg(timestamp, levelStr, categoryName, msg);
 
-  auto locker = QMutexLocker(&instance()->m_mutex);
-
-  std::cerr << logMsg.toStdString() << "\n";
-
-  instance()->writeToFile(logMsg);
+  return logMsg;
 }
 
-void Logger::setLogLevel(LogLevel level) {
-  auto locker = QMutexLocker(&instance()->m_mutex);
-  instance()->m_currentLevel = level;
-}
-
-Logger::LogLevel Logger::loglevel() {
-  auto locker = QMutexLocker(&instance()->m_mutex);
-  return instance()->m_currentLevel;
-}
-
-Logger *Logger::instance() {
-  if (!s_instance) {
-    qFatal("Logger is not initiatlized");
-  }
-
-  return s_instance.get();
-}
-
-void Logger::writeToFile(const QString &message) {
-  QMutexLocker locker(&m_mutex);
+void Logger::writeToFile(const QString &message) const {
+  auto locker = QMutexLocker(&m_mutex);
 
   if (m_logFile.isOpen()) {
-    QTextStream stream(&m_logFile);
+    auto stream = QTextStream(&m_logFile);
     stream << message << Qt::endl;
+    m_logFile.flush();
   }
 }
 
-} // namespace common::utils
+QString Logger::loglevelToStr(const LogLevel &logLevel) const {
+  switch (logLevel) {
+  case LogLevel::Debug:
+    return QString("Debug");
+    break;
+  case LogLevel::Info:
+    return QString("Info");
+    break;
+  case LogLevel::Warning:
+    return QString("Warning");
+    break;
+  case LogLevel::Critical:
+    return QString("Critical");
+    break;
+  case LogLevel::Fatal:
+    return QString("Fatal");
+    break;
+  default:
+    return QString("Unknown");
+    break;
+  }
+}

@@ -2,7 +2,6 @@
 
 #include <QDateTime>
 #include <QJsonObject>
-namespace common::dtos {
 
 class DeviceState {
 public:
@@ -16,11 +15,13 @@ public:
   void setLight(bool light);
   void setBrightness(int brightness);
   void setTimestamp(const QDateTime &timestamp);
+  void setType(const QString &type);
 
   // Getters
   int deviceId() const;
   bool light() const;
   int brightness() const;
+  QString type() const;
   QDateTime timestamp() const;
 
   // Serialization
@@ -38,6 +39,5 @@ private:
   bool m_light; // true is on, false is off
   int m_brightness;
   QDateTime m_timestamp;
+  QString m_type;
 };
-
-} // namespace common::dtos

@@ -1,10 +1,9 @@
 #pragma once
 
+#include "interfaces/IDeviceController.h"
 #include <QDateTime>
 #include <QJsonObject>
 #include <QtDebug>
-
-namespace common::dtos {
 
 class SensorData {
 public:
@@ -15,8 +14,8 @@ public:
   ~SensorData() = default;
 
   // Getters
-  double temp() const;
-  double humidity() const;
+  double getTemp() const;
+  double getHumidity() const;
   QDateTime timestamp() const;
 
   // Setters
@@ -39,4 +38,3 @@ private:
   double m_humidity;
   QDateTime m_timestamp;
 };
-} // namespace common::dtos

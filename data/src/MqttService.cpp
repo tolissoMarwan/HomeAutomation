@@ -1,22 +1,20 @@
 #include "MqttService.h"
-#include "utils/Logger.h"
 
-namespace data::Mqtt {
+Q_LOGGING_CATEGORY(MqttServiceCategory, "MqttService")
 
 MqttService::MqttService(QObject *parent)
-    : QObject(parent), m_client(nullptr), m_mutex(), m_subscribtion(),
-      m_lastWillTopic(QString()), m_lastWillMessage(QByteArray()),
-      m_lastWillQos(0), m_lastWillRetain(false) {
+    : QObject(parent), m_client(std::make_shared<QMqttClient>(this)), m_mutex(),
+      m_subscribtion(), m_lastWillTopic(QString()),
+      m_lastWillMessage(QByteArray()), m_lastWillQos(0),
+      m_lastWillRetain(false) {
   setupConnections();
-  common::utils::Logger::log(common::utils::Logger::LogLevel::Debug,
-                             "MQTT service initialized");
+  qCDebug(MqttServiceCategory) << "MQTT service initialized";
 }
 
 MqttService::~MqttService() {
   cleanupSubscriptions();
   disconnectFromBroker();
-  common::utils::Logger::log(common::utils::Logger::LogLevel::Debug,
-                             "MQTT service destroyed");
+  qCDebug(MqttServiceCategory) << "MQTT service destroyed";
 }
 
 void MqttService::connectToBroker(const QString &host, quint16 port,
@@ -24,9 +22,8 @@ void MqttService::connectToBroker(const QString &host, quint16 port,
   auto locker = QMutexLocker(&m_mutex);
 
   if (!isConnected()) {
-    common::utils::Logger::log(
-        common::utils::Logger::LogLevel::Warning,
-        "MqttService: Already connected or connecting to broker");
+    qCWarning(MqttServiceCategory)
+        << "Already connected or connecting to broker";
     return;
   }
 
@@ -34,10 +31,8 @@ void MqttService::connectToBroker(const QString &host, quint16 port,
   m_client->setPort(port);
   m_client->setClientId(clientId.isEmpty() ? QUuid::createUuid().toString()
                                            : clientId);
-  common::utils::Logger::log(
-      common::utils::Logger::LogLevel::Info,
-      QString("MqttService: Connecting to broker: %1%2").arg(host, port));
-
+  qCInfo(MqttServiceCategory)
+      << QString("MqttService: Connecting to broker: %1%2").arg(host, port);
   m_client->connectToHost();
 }
 
@@ -45,8 +40,7 @@ void MqttService::disconnectFromBroker() {
   auto locker = QMutexLocker(&m_mutex);
 
   if (isConnected()) {
-    common::utils::Logger::log(common::utils::Logger::LogLevel::Info,
-                               "MqttService: disconnected from broker");
+    qCInfo(MqttServiceCategory) << "disconnected from broker";
     m_client->disconnectFromHost();
   }
 }
@@ -55,8 +49,8 @@ void MqttService::subscribe(const QString &topic, quint8 qos) {
   auto locker = QMutexLocker(&m_mutex);
 
   if (!m_client->QMqttClient::Connected) {
-    common::utils::Logger::log(common::utils::Logger::LogLevel::Warning,
-                               "MqttService: Subscribe failed - not connected");
+    qCWarning(MqttServiceCategory) << "Subscribe failed - not connected";
+
     return;
   }
 
@@ -64,9 +58,8 @@ void MqttService::subscribe(const QString &topic, quint8 qos) {
     auto subscription = m_client->subscribe(topic, qos);
     if (!subscription) {
       m_subscribtion[topic] = subscription;
-      common::utils::Logger::log(
-          common::utils::Logger::LogLevel::Info,
-          QString("MqttService: Subscribed to %1 (Qos %2)").arg(topic, qos));
+      qCInfo(MqttServiceCategory) << QString("Subscribed to %1 (Qos %2)")
+                                         .arg(topic, QString::number(qos));
     }
   }
 }
@@ -77,9 +70,7 @@ void MqttService::unsubscribe(const QString &topic) {
   if (m_subscribtion.contains(topic)) {
     m_client->unsubscribe(topic);
     m_subscribtion.remove(topic);
-    common::utils::Logger::log(
-        common::utils::Logger::LogLevel::Info,
-        QString("MqttService: Unsubscribed from %1").arg(topic));
+    qCInfo(MqttServiceCategory) << QString("Unsubscribed from %1").arg(topic);
   }
 }
 
@@ -88,13 +79,10 @@ void MqttService::publish(const QString &topic, const QByteArray &payload,
   auto locker = QMutexLocker(&m_mutex);
 
   if (m_client->publish(topic, payload, qos, retrain)) {
-    common::utils::Logger::log(common::utils::Logger::LogLevel::Debug,
-                               QString("MqttService: Published to %1 (%2 bytes")
-                                   .arg(topic, payload.size()));
+    qCDebug(MqttServiceCategory)
+        << QString("Published to %1 (%2 bytes").arg(topic, payload.size());
   } else {
-    common::utils::Logger::log(
-        common::utils::Logger::LogLevel::Error,
-        QString("MqttService: publish failed to").arg(topic));
+    qCCritical(MqttServiceCategory) << QString("publish failed to").arg(topic);
   }
 }
 
@@ -104,13 +92,10 @@ void MqttService::setCredentials(const QString &username,
 
   m_client->setUsername(username);
   m_client->setPassword(password);
-  common::utils::Logger::log(common::utils::Logger::LogLevel::Info,
-                             "MqttService: Credentials updated");
+  qCInfo(MqttServiceCategory) << QString("Credentials updated");
 }
 
 bool MqttService::isConnected() const {
-  auto locker = QMutexLocker(&m_mutex);
-
   return QMqttClient::Connected == m_client->state();
 }
 
@@ -120,8 +105,7 @@ void MqttService::retryConnection() {
   if (!isConnected()) {
     m_client->connectToHost();
 
-    common::utils::Logger::log(common::utils::Logger::LogLevel::Info,
-                               "MqttService: reconnection attempt");
+    qCInfo(MqttServiceCategory) << QString("reconnection attempt");
   }
 }
 
@@ -166,23 +150,19 @@ void MqttService::handleClientStateChange(QMqttClient::ClientState state) {
 
   switch (state) {
   case QMqttClient::Connected:
+    qCInfo(MqttServiceCategory) << "connected to broker";
     emit connected();
-    common::utils::Logger::log(common::utils::Logger::LogLevel::Info,
-                               "MqttService: connected to broker");
     break;
   case QMqttClient::Disconnected:
     emit disconnected();
-    common::utils::Logger::log(common::utils::Logger::LogLevel::Info,
-                               "MqttService: disconnected to broker");
+    qCInfo(MqttServiceCategory) << "disconnected from broker";
     break;
   case QMqttClient::Connecting:
-    common::utils::Logger::log(common::utils::Logger::LogLevel::Info,
-                               "MqttService: connecting to broker...");
+    qCInfo(MqttServiceCategory) << "connecting to broker...";
     break;
   default:
-    common::utils::Logger::log(
-        common::utils::Logger::LogLevel::Warning,
-        QString("MqttService: Unknown client connection state: %1").arg(state));
+    qCWarning(MqttServiceCategory)
+        << QString("Unknown client connection state: %1").arg(state);
     break;
   }
 }
@@ -190,14 +170,11 @@ void MqttService::handleClientStateChange(QMqttClient::ClientState state) {
 void MqttService::handleMessageReceived(const QByteArray &payload,
                                         const QMqttTopicName &topic) {
   const auto content = QString::fromUtf8(payload);
-  common::utils::Logger::log(
-      common::utils::Logger::LogLevel::Debug,
-      QString("MqttService: Message recieved [%1]: %2... (%3 bytes")
-          .arg(topic.name())
-          .arg(content.left(50))
-          .arg(payload.size()));
+  qCDebug(MqttServiceCategory)
+      << QString("Message recieved [%1]: %2... (%3 bytes ")
+             .arg(topic.name())
+             .arg(content.left(50))
+             .arg(payload.size());
 
   emit messageReceived(topic.name(), payload);
 }
-
-} // namespace data::Mqtt

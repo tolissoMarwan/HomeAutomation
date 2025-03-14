@@ -1,15 +1,17 @@
 #pragma once
 
 #include <QHash>
-#include <QMqttClient>
-#include <QMqttSubscription>
 #include <QMutex>
 #include <QObject>
+#include <QtMqtt/QMqttClient>
+#include <QtMqtt/QMqttSubscription>
 #include <memory>
 
 #include "dtos/SensorData.h"
+#include "utils/Logger.h"
 
-namespace data::Mqtt {
+Q_DECLARE_LOGGING_CATEGORY(MqttServiceCategory)
+
 class MqttService : public QObject {
 
   Q_OBJECT
@@ -32,7 +34,6 @@ public:
 
   // Configuration
   void setCredentials(const QString &username, const QString &password);
-  bool isConnected() const;
 
 public slots:
   void retryConnection();
@@ -43,7 +44,9 @@ private slots:
                              const QMqttTopicName &topic);
 
 private:
-  std::unique_ptr<QMqttClient> m_client;
+  bool isConnected() const;
+
+  std::shared_ptr<QMqttClient> m_client;
   QHash<QString, QMqttSubscription *> m_subscribtion;
   mutable QMutex m_mutex;
 
@@ -61,5 +64,3 @@ signals:
   void messageReceived(const QString &topic, const QByteArray &payload);
   void errorOccurred(const QString &error);
 };
-
-} // namespace data::Mqtt

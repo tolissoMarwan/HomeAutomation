@@ -3,7 +3,6 @@
 #include <QObject>
 #include <QString>
 
-namespace common::interfaces {
 class ISensorReader : public QObject {
   Q_OBJECT
 public:
@@ -19,7 +18,4 @@ signals:
 public slots:
 };
 
-} // namespace common::interfaces
-
-Q_DECLARE_INTERFACE(common::interfaces::ISensorReader,
-                    "com.homeautomation.ISensorReader")
+Q_DECLARE_INTERFACE(ISensorReader, "com.homeautomation.ISensorReader")

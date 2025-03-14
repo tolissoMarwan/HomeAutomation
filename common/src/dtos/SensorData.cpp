@@ -1,7 +1,5 @@
 #include "dtos/SensorData.h"
 
-namespace common::dtos {
-
 SensorData::SensorData(double temp, double humidity, const QDateTime &timestamp)
     : m_temp(temp), m_humidity(humidity), m_timestamp(timestamp) {
   if (!isValid()) {
@@ -9,9 +7,9 @@ SensorData::SensorData(double temp, double humidity, const QDateTime &timestamp)
   }
 }
 
-double SensorData::temp() const { return m_temp; }
+double SensorData::getTemp() const { return m_temp; }
 
-double SensorData::humidity() const { return m_humidity; }
+double SensorData::getHumidity() const { return m_humidity; }
 
 QDateTime SensorData::timestamp() const { return m_timestamp; }
 
@@ -42,8 +40,8 @@ void SensorData::setTimestamp(const QDateTime &timestamp) {
 QJsonObject SensorData::toJson() const {
   auto json = QJsonObject();
 
-  json["temp"] = temp();
-  json["humidity"] = humidity();
+  json["temp"] = getTemp();
+  json["humidity"] = getHumidity();
   json["timestamp"] = timestamp().toString(Qt::ISODate);
 
   return json;
@@ -76,12 +74,11 @@ bool SensorData::operator==(const SensorData &other) const {
          qFuzzyCompare(m_humidity, other.m_humidity) &&
          m_timestamp == other.m_timestamp;
 }
-} // namespace common::dtos
 
-QDebug operator<<(QDebug debug, const common::dtos::SensorData &data) {
+QDebug operator<<(QDebug debug, const SensorData &data) {
   QDebugStateSaver saver(debug);
   debug.nospace() << "timestamp=" << data.timestamp().toString(Qt::ISODate)
-                  << ", SensorData(temperature=" << data.temp()
-                  << ", humidity=" << data.humidity();
+                  << ", SensorData(temperature=" << data.getTemp()
+                  << ", humidity=" << data.getHumidity();
   return debug;
 }
